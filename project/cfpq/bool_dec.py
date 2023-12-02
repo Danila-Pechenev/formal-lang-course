@@ -31,7 +31,7 @@ class BooleanDecomposition:
             tc += tc @ tc
             prev_nnz, new_nnz = new_nnz, tc.nnz
 
-        return tc
+        return tc.astype(bool).todok()
 
     @classmethod
     def from_automaton(cls, automaton):

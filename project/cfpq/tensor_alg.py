@@ -1,4 +1,5 @@
 import networkx as nx
+import numpy as np
 from scipy.sparse import dok_matrix
 from pyformlang.cfg import CFG, Variable
 from scipy.sparse import dok_matrix, identity
@@ -49,28 +50,33 @@ def tensor_alg(
     while changed:
         changed = False
         transitive_closure = bfa.intersect(decomposition).transitive_closure()
-        x, y = transitive_closure.nonzero()
-
-        for (i, j) in zip(x, y):
-            rfa_from = i // decomposition.num_states
-            rfa_to = j // decomposition.num_states
-            graph_from = i % decomposition.num_states
-            graph_to = j % decomposition.num_states
-
-            if (rfa_from, rfa_to) not in rsm_heads:
-                continue
-
-            variable = rsm_heads[(rfa_from, rfa_to)]
-            m = decomposition.bool_matrices.get(
-                variable,
-                dok_matrix(
-                    (decomposition.num_states, decomposition.num_states), dtype=bool
-                ),
-            )
-            if not m[graph_from, graph_to]:
-                changed = True
-                m[graph_from, graph_to] = True
-                decomposition.bool_matrices[variable] = m
+        for rfa_from in range(transitive_closure.shape[0] // decomposition.num_states):
+            for rfa_to in range(
+                transitive_closure.shape[1] // decomposition.num_states
+            ):
+                if (rfa_from, rfa_to) not in rsm_heads:
+                    continue
+                variable = rsm_heads[(rfa_from, rfa_to)]
+                m = decomposition.bool_matrices.get(
+                    variable,
+                    dok_matrix(
+                        (decomposition.num_states, decomposition.num_states), dtype=bool
+                    ),
+                )
+                before = m.sum()
+                decomposition.bool_matrices[variable] = np.add(
+                    m,
+                    transitive_closure[
+                        (rfa_from * decomposition.num_states) : (
+                            (rfa_from + 1) * decomposition.num_states
+                        ),
+                        (rfa_to * decomposition.num_states) : (
+                            (rfa_to + 1) * decomposition.num_states
+                        ),
+                    ],
+                )
+                after = decomposition.bool_matrices[variable].sum()
+                changed = changed or (before < after)
 
     result = set()
     for key, m in decomposition.bool_matrices.items():
